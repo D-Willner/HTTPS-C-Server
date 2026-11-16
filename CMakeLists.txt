@@ -1,0 +1,11 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 3.22)
+
+PROJECT(server)
+
+ADD_EXECUTABLE(server)
+
+TARGET_SOURCES(server
+PRIVATE
+    main.c 
+    server.c 
+)
