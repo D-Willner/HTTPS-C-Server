@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 char* HTTP_response_status_conv[] = {
+    [HTTP_status_ignore] = 0,
     [Continue_100] = "100 Continue",
     [OK_200] = "200 OK",
     [Created_201] = "201 Created",
