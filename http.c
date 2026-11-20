@@ -170,13 +170,12 @@ void free_HTTP_response_header(HTTP_response_header_t response_header)
     free(response_header.fields);
 }
 
-// Spaghetti
 HTTP_request_header_t HTTP_parse_request(char* request)
 {
     char* header;
     int res = HTTP_isolate_header(request, &header);
     if(res < 0){
-        // error
+        goto fail;
     }
 
     HTTP_request_header_t HTTP_request_header = {0};
@@ -185,7 +184,7 @@ HTTP_request_header_t HTTP_parse_request(char* request)
     char* line;
     int sz = get_line(header, &line);
     if(sz < 0){
-        // error
+        goto fail;
     }
 
     char* cur = header;
@@ -210,21 +209,16 @@ HTTP_request_header_t HTTP_parse_request(char* request)
         HTTP_request_header.request_type = POST;
         ptr = ptrpost;
     } else{
-        printf("Could not parse HTTP Header");
-        abort();
-        // not implemented
+        goto fail;
     }
 
     ptr = strchr(ptr, ' ') + 1;
     if(ptr - line > sz){
-        // bad
+        goto fail;
     }
     end = ptr + strcspn(ptr, " \r\n")-1;
     if(!end){
-        // bad
-        free(line);
-        abort();
-        //return 0;
+        goto fail;
     }
     char* URI = malloc(end - ptr + 2);
     memcpy(URI, ptr, end-ptr+1);
@@ -243,10 +237,10 @@ HTTP_request_header_t HTTP_parse_request(char* request)
     while(cur - header <= strlen(header)-4){
         sz = get_line(cur, &line);
         if(!(end = strchr(line, ':'))){
-            // error
+            goto fail;
         }
         if(sz <= end - line + 1 || ((sz == end - line + 2) && *(end+1) == ' ')) {
-            // error
+            goto fail;
         } 
         char* left = substr(line, end-line);
 
@@ -281,7 +275,7 @@ fail:
 int HTTP_code_ind(char* code_beg)
 {
     for(int i = 0; i < sizeof(HTTP_response_status_code)/sizeof(HTTP_response_status_code[0]); i++){
-        if(!memcmp(code_beg, HTTP_response_status_code[i], 3)){
+        if(HTTP_response_status_code[i] && !memcmp(code_beg, HTTP_response_status_code[i], 3)){
             return i;
         }
     }
@@ -294,7 +288,7 @@ HTTP_response_header_t HTTP_parse_response(char* response)
     char* header;
     int res = HTTP_isolate_header(response, &header);
     if(res < 0){
-        // error
+        goto fail;
     }
 
     HTTP_response_header_t HTTP_response_header = {0};
@@ -303,7 +297,7 @@ HTTP_response_header_t HTTP_parse_response(char* response)
     char* line;
     int sz = get_line(header, &line);
     if(sz < 0){
-        // error
+        goto fail;
     }
 
     char* cur = strstr(line, "HTTP/");
@@ -334,10 +328,10 @@ HTTP_response_header_t HTTP_parse_response(char* response)
     while(cur - header <= strlen(header)-4){
         sz = get_line(cur, &line);
         if(!(end = strchr(line, ':'))){
-            // error
+            goto fail;
         }
         if(sz <= end - line + 1 || ((sz == end - line + 2) && *(end+1) == ' ')) {
-            // error
+            goto fail;
         } 
         char* left = substr(line, end-line);
 
