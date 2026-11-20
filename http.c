@@ -26,6 +26,7 @@ char* HTTP_response_status_conv[] = {
 };
 
 char* HTTP_response_status_code[] = {
+    [HTTP_status_ignore] = 0,
     [Continue_100] = "100",
     [OK_200] = "200",
     [Created_201] = "201",
