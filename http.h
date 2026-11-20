@@ -11,26 +11,27 @@ typedef enum {
 } HTTP_request_type_t;
 
 typedef enum {
+    HTTP_content_ignore,
     HTTP_text,
-    HTTP_json,
-    HTTP_content_ignore
+    HTTP_json
 } HTTP_content_type_t;
 
 typedef enum {
+    HTTP_connection_ignore,
     HTTP_keep_alive,
-    HTTP_close,
-    HTTP_connection_ignore
+    HTTP_close
 } HTTP_connection_type_t;
 
 typedef enum {
+    HTTP_cookie_ignore,
     HTTP_set_cookie,
-    HTTP_no_cookie,
-    HTTP_cookie_ignore
+    HTTP_no_cookie
 } HTTP_cookie_instr_t;
 
 typedef char* HTTP_pair_t[2];   //  'fieldname' : 'fieldvalue'
 
 typedef enum {
+    HTTP_status_ignore = 0,
     Continue_100,
     OK_200,
     Created_201,
@@ -48,25 +49,10 @@ typedef enum {
     ServUnav_503
 } HTTP_response_status_t;
 
-char* HTTP_response_status_conv[] = {
-    [Continue_100] = "100 Continue",
-    [OK_200] = "200 OK",
-    [Created_201] = "201 Created",
-    [NoContent_204] = "204 No Content",
-    [Moved_301] = "301 Moved Permanently",
-    [Found_302] = "302 Found",
-    [NotMod_304] = "304 Not Modified",
-    [BadReq_400] = "400 Bad Request",
-    [Unauth_401] = "401 Unauthorized",
-    [Forbidden_403] = "403 Forbidden",
-    [NotFound_404] = "404 Not Found",
-    [TooManyReq_429] = "429 Too Many Requests",
-    [IntServerErr_500] = "500 Internal Server Error",
-    [BadGateway_502] = "502 Bad Gateway",
-    [ServUnav_503] = "503 Service Unavailable"
-};
+extern char* HTTP_response_status_conv[];
 
 typedef struct {
+    HTTP_request_type_t request_type;
     char* host;
     char* user_agent;
     char* URI;
@@ -88,7 +74,11 @@ typedef struct {
     int fields_len;
 } HTTP_response_header_t;
 
+void free_HTTP_request_header(HTTP_request_header_t request_header);
+void free_HTTP_response_header(HTTP_response_header_t response_header);
+
 HTTP_request_header_t HTTP_parse_request(char* request);
+/* Parses a complete HTTP/1.x header. HTTP_status_ignore signals failure. */
 HTTP_response_header_t HTTP_parse_response(char* response);
 
 char* HTTP_create_request(const HTTP_request_header_t request);

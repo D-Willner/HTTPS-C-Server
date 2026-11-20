@@ -1,6 +1,8 @@
 #include "server.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 static char HTTP_HTML_RESP[] = "HTTP/1.1 200 OK\r\n\
 Content-Type: text/html; charset=UTF-8\r\n\r\n";
