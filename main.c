@@ -15,5 +15,9 @@ int main(int argc, char** argv)
     //server_t server = create_server(1024);
     //return start_server_multithread(server);
 
-    return test_http_parse_request();
+    int request_result = test_http_parse_request();
+    int create_result = test_http_create();
+
+    return request_result == EXIT_SUCCESS && create_result == EXIT_SUCCESS
+        ? EXIT_SUCCESS : EXIT_FAILURE;
 }
