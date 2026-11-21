@@ -1,11 +1,118 @@
 #include "server.h"
+#include "http.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <stdio.h>
+
+static char resource_folder[] = "../resources/";
 
 static char HTTP_HTML_RESP[] = "HTTP/1.1 200 OK\r\n\
 Content-Type: text/html; charset=UTF-8\r\n\r\n";
+
+int standard_GET_response(int clientsockfd, char* URI, char* request)
+{
+    char* filename = 0;
+    char* fileURI = 0;
+    char* filecont = 0;
+    char* response_header_buffer = 0;
+    char* buffer = 0;
+
+    if(!strcmp(URI, "/")){
+        filename = "index.html";
+    } else { //  better not keep secret stuff in the resource folder
+        filename = malloc(strlen(URI) + strlen(".html") + 1);
+        memcpy(filename, URI, strlen(URI));
+        memcpy(filename + strlen(URI), ".html", strlen(".html"));
+        filename[strlen(URI) + strlen(".html")] = '\0';
+    }
+
+    fileURI = malloc(strlen(resource_folder) + strlen(filename) + 1);
+    if(!fileURI) return 1;
+
+    memcpy(fileURI, resource_folder, strlen(resource_folder));
+    memcpy(fileURI+strlen(resource_folder), filename, strlen(filename));
+    fileURI[strlen(resource_folder) + strlen(filename)] = '\0';
+
+    FILE* fptr = fopen(fileURI, "r");
+    if(!fptr) {
+        perror("Could not open file");
+        goto fail;
+    }
+
+    fseek(fptr, 0, SEEK_END);
+    long fsize = ftell(fptr);
+    fseek(fptr, 0, SEEK_SET);  
+
+    filecont = malloc(fsize + 1);
+    if(!filecont) {
+        fclose(fptr);
+        perror("Could not allocate memory for file content");
+        goto fail;
+    }
+
+    fread(filecont, fsize, 1, fptr);
+    filecont[fsize] = 0;
+
+    fclose(fptr);
+
+    HTTP_response_header_t response_header = {.status = OK_200};
+    char num_buffer[50];
+    sprintf(num_buffer, "%li", fsize);
+    HTTP_pair_t content_length = {"Content-Length", num_buffer};
+    response_header.fields = &content_length;
+    response_header.fields_len = 1;
+    response_header_buffer = HTTP_create_response(response_header);
+
+    int buffer_sz = strlen(response_header_buffer) + strlen(filecont) + 1;
+    buffer = malloc(buffer_sz);
+    if(!buffer) {
+        perror("Could not allocate memory for response buffer");
+        goto fail;
+    }
+    memcpy(buffer, response_header_buffer, strlen(response_header_buffer));
+    memcpy(buffer+strlen(response_header_buffer), filecont, strlen(filecont));
+    buffer[strlen(response_header_buffer) + strlen(filecont)] = '\0'; // unnecessary use content-length
+
+    int amnt = 0;
+    while(amnt < buffer_sz){
+        amnt += send(clientsockfd, buffer + amnt, buffer_sz - amnt, MSG_NOSIGNAL);
+        if(amnt <= 0){
+            perror("Error when sending message to client");
+            goto fail;
+        } 
+    }
+
+    free(fileURI);
+    free(filecont);
+    free(response_header_buffer);
+    free(buffer);
+    return 0;
+
+fail:
+    free(fileURI);
+    free(filecont);
+    free(response_header_buffer);
+    free(buffer);
+    return 1;
+}
+
+int register_resource(server_t* server, char* URI, response_t resp)
+{
+    if(server->response_amnt == server->allocated){
+        response_t* temp = realloc(server->responses, 2 *(server->allocated+1) * sizeof(response_t));
+        if(!temp) return 1;
+
+        server->allocated = 2*(server->allocated+1);
+        server->responses = temp;
+    }
+
+    server->responses[server->response_amnt] = resp;
+    server->response_amnt++;
+    return 0;
+}
+
 
 server_t create_server(int port)
 {
@@ -63,15 +170,42 @@ int read_file(char* filename, char* buffer, size_t buffersz)
     return amnt;
 }
 
-void* handle_client(void* vptr_client_sockfd)
+static response_t* find_response(server_t* server, char* URI)
 {
-    int client_sockfd = *((int*) vptr_client_sockfd);
+    for(int i = 0; i < server->response_amnt; i++){
+        if(!strcmp(URI, server->responses[i].URI)) return &server->responses[i];
+    }
+    return 0;
+}
+
+static int respond_client(server_t* server, int clientsockfd, char* request)
+{
+    HTTP_request_header_t request_header = HTTP_parse_request(request);
+    if(request_header.request_type == INVALID) return 1;
+
+    response_t* response = find_response(server, request_header.URI);
+    if(!response) return 1;
+
+    return response->response_function(clientsockfd, response->URI, request);
+}
+
+struct clientfd_server_pair{
+    int clientfd;
+    server_t* server;
+};
+
+static void* handle_client(void* vptr_clientfd_server_pair)
+{
+    struct clientfd_server_pair temp = *((struct clientfd_server_pair*) vptr_clientfd_server_pair);
+    int client_sockfd = temp.clientfd;
+    server_t* ptr_server = temp.server;
+    free(vptr_clientfd_server_pair);
+
     printf("Filedescriptor: %i", client_sockfd);
     char buffer[2048];
     bzero(buffer, sizeof(buffer));
 
     while(1){
-        //  implement this correctly
         int amnt = recv(client_sockfd, buffer, sizeof(buffer), 0); 
 
         if(amnt == 0){
@@ -87,32 +221,27 @@ void* handle_client(void* vptr_client_sockfd)
         printf("Received the following message:\n");
         printf("%s\n", buffer);
 
-        // choose correct website here
-        memcpy(buffer, HTTP_HTML_RESP, sizeof(HTTP_HTML_RESP));
-        int sz = read_file("../resources/index.html", buffer+sizeof(HTTP_HTML_RESP), sizeof(buffer)-sizeof(HTTP_HTML_RESP));
-        amnt = send(client_sockfd, buffer, sizeof(HTTP_HTML_RESP) + sz, MSG_NOSIGNAL);
-        if(amnt < 0){
-            perror("Could not write message to client!");
-            break;
+        if(respond_client(ptr_server, client_sockfd, buffer)){
+            printf("Error when responding to client");
         }
     }
 
     close(client_sockfd);
-    free(vptr_client_sockfd);
     printf("Finished client handling.\n\n");
     return 0;
 }
 
-int start_server(server_t server)
+int start_server(server_t* server)
 {
-    if(server.sockfd < 0) return -1;
+    if(server->sockfd < 0) return -1;
 
     while(1){
         struct sockaddr_in client_addr;
         int clilen = sizeof(client_addr);
 
         int* client_sockfd = malloc(sizeof(int));
-        *client_sockfd = accept(server.sockfd, (struct sockaddr*) &client_addr, &clilen);
+        if(!client_sockfd) continue;
+        *client_sockfd = accept(server->sockfd, (struct sockaddr*) &client_addr, &clilen);
         if(client_sockfd < 0){
             perror("Could not accept client!");
         }
@@ -123,22 +252,27 @@ int start_server(server_t server)
     return 0;
 }
 
-int start_server_multithread(server_t server)
+int start_server_multithread(server_t* server)
 {
-    if(server.sockfd < 0) return -1;
+    if(server->sockfd < 0) return -1;
 
     while(1){
         struct sockaddr_in client_addr;
         int clilen = sizeof(client_addr);
 
         int* client_sockfd = malloc(sizeof(int));
-        *client_sockfd = accept(server.sockfd, (struct sockaddr*) &client_addr, &clilen);
+        if(!client_sockfd) continue;
+        *client_sockfd = accept(server->sockfd, (struct sockaddr*) &client_addr, &clilen);
         if(client_sockfd < 0){
             perror("Could not accept client!");
         }
 
         pthread_t thread;
-        pthread_create(&thread, 0, handle_client, client_sockfd);
+        struct clientfd_server_pair* data = malloc(sizeof(struct clientfd_server_pair));    // free called in new thread
+        if(!data) continue;
+        *data = (struct clientfd_server_pair){.clientfd = *client_sockfd, .server = server};
+
+        pthread_create(&thread, 0, handle_client, data);
         pthread_detach(thread);
     }
 

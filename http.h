@@ -6,6 +6,7 @@ typedef enum {
 } HTTP_type_t;
 
 typedef enum {
+    INVALID,
     GET,
     POST
 } HTTP_request_type_t;

@@ -53,31 +53,31 @@ static const request_case_t request_cases[] = {
     {
         .name = "host",
         .request = "GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"Host", "localhost:8080"}},
     },
     {
         .name = "user_agent",
         .request = "GET / HTTP/1.1\r\nUser-Agent: Test Client/1.0\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"User-Agent", "Test Client/1.0"}},
     },
     {
         .name = "keep_alive",
         .request = "GET / HTTP/1.1\r\nConnection: Keep-Alive\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"Connection", "Keep-Alive"}},
     },
     {
         .name = "close",
         .request = "GET / HTTP/1.1\r\nConnection: Close\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"Connection", "Close"}},
     },
     {
         .name = "numeric_cookie",
         .request = "GET / HTTP/1.1\r\nCookie: 123456\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"Cookie", "123456"}},
     },
     {
@@ -91,13 +91,13 @@ static const request_case_t request_cases[] = {
     {
         .name = "extra_fields",
         .request = "GET / HTTP/1.1\r\nX-First: alpha\r\nX-Second: beta gamma\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 2},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 2},
         .fields = {{"X-First", "alpha"}, {"X-Second", "beta gamma"}},
     },
     {
         .name = "no_space_after_colon",
         .request = "GET / HTTP/1.1\r\nContent-Length:0\r\nX-Test:value\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 2},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 2},
         .fields = {{"Content-Length", "0"}, {"X-Test", "value"}},
     },
     {
@@ -110,7 +110,7 @@ static const request_case_t request_cases[] = {
     {
         .name = "unrecognized_connection",
         .request = "GET / HTTP/1.1\r\nConnection: custom\r\n\r\n",
-        .expected = {.URI = "/", .fields_len = 1},
+        .expected = {.request_type = GET, .URI = "/", .fields_len = 1},
         .fields = {{"Connection", "custom"}},
     },
     {
