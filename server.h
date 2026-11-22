@@ -1,3 +1,5 @@
+#pragma once
+
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,6 +28,8 @@ typedef struct {
     int response_amnt;
     int allocated;
 } server_t;
+
+// server_t right now not thread safe. might cause data race depending on usage
 
 server_t create_server(int port);
 

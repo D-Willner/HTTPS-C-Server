@@ -3,16 +3,18 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.22)
 PROJECT(server)
 
 FIND_PACKAGE(Threads REQUIRED)
+FIND_PACKAGE(OpenSSL REQUIRED)
 
 ADD_EXECUTABLE(server)
 
-TARGET_LINK_LIBRARIES(server PRIVATE Threads::Threads)
+TARGET_LINK_LIBRARIES(server PRIVATE Threads::Threads OpenSSL::SSL)
 
 TARGET_SOURCES(server
 PRIVATE
     main.c 
     http.c
     server.c 
+    server_ssl.c
     test/test_http.c
 )
 

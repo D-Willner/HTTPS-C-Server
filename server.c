@@ -2,8 +2,6 @@
 #include "http.h"
 #include <pthread.h>
 #include <stdlib.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 #include <stdio.h>
 
 static char resource_folder[] = "../resources/";
@@ -21,7 +19,9 @@ int standard_GET_response(int clientsockfd, char* URI, char* request)
 
     if(!strcmp(URI, "/")){
         filename = "index.html";
-    } else { //  better not keep secret stuff in the resource folder
+    } else { //  better not keep secret stuff in the resource folder 
+        if(strstr(URI, "..")) return 1; // make sure we dont escape resource folder (is this enough idk?)
+
         filename = malloc(strlen(URI) + strlen(".html") + 1);
         memcpy(filename, URI, strlen(URI));
         memcpy(filename + strlen(URI), ".html", strlen(".html"));
@@ -151,7 +151,7 @@ server_t create_server(int port)
     return server;
 }
 
-int read_file(char* filename, char* buffer, size_t buffersz)
+static int read_file(char* filename, char* buffer, size_t buffersz)
 {
     FILE* fptr = fopen(filename, "r");
     if(fptr == 0){
@@ -189,14 +189,14 @@ static int respond_client(server_t* server, int clientsockfd, char* request)
     return response->response_function(clientsockfd, response->URI, request);
 }
 
-struct clientfd_server_pair{
+typedef struct {
     int clientfd;
     server_t* server;
-};
+} clientfd_server_pair_t;
 
 static void* handle_client(void* vptr_clientfd_server_pair)
 {
-    struct clientfd_server_pair temp = *((struct clientfd_server_pair*) vptr_clientfd_server_pair);
+    clientfd_server_pair_t temp = *((clientfd_server_pair_t*) vptr_clientfd_server_pair);
     int client_sockfd = temp.clientfd;
     server_t* ptr_server = temp.server;
     free(vptr_clientfd_server_pair);
@@ -268,9 +268,9 @@ int start_server_multithread(server_t* server)
         }
 
         pthread_t thread;
-        struct clientfd_server_pair* data = malloc(sizeof(struct clientfd_server_pair));    // free called in new thread
+        clientfd_server_pair_t* data = malloc(sizeof(clientfd_server_pair_t));    // free called in new thread
         if(!data) continue;
-        *data = (struct clientfd_server_pair){.clientfd = *client_sockfd, .server = server};
+        *data = (clientfd_server_pair_t){.clientfd = *client_sockfd, .server = server};
 
         pthread_create(&thread, 0, handle_client, data);
         pthread_detach(thread);
