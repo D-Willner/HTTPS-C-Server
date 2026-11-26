@@ -126,7 +126,7 @@ static int HTTP_header_lines(char* header)
     int sum = 0;
     char* cur = header;
     while(1){
-        cur = strchr(cur, '\n');
+        cur = strchr(cur, '\r');
         sum++;
         if(cur == 0 || cur - header >= len - 4) break;
         cur++;
@@ -235,6 +235,10 @@ HTTP_request_header_t HTTP_parse_request(char* request)
 
     int field_cnt = 0;
     while(cur - header <= strlen(header)-4){
+        if(field_cnt >= field_amnt){
+            printf("Error on amount of fields of HTTP header!\n");
+            goto fail;
+        }
         sz = get_line(cur, &line);
         if(!(end = strchr(line, ':'))){
             goto fail;
@@ -260,12 +264,14 @@ HTTP_request_header_t HTTP_parse_request(char* request)
         cur += sz;
         cur = skip_nl(cur);
         free(line);
+        line = 0;
     }
 
     free(header);
     return HTTP_request_header;
 
 fail:
+    free_HTTP_request_header(HTTP_request_header);
     free(header);
     free(line);
     HTTP_request_header_t ret = {0};

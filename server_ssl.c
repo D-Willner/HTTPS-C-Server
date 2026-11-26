@@ -278,7 +278,7 @@ static void* handle_client_ssl(void* vptr_clientfd_server_pair)
         int offset_prev = 0;
         char* header_end = 0;
         bzero(buffer, sizeof(buffer));
-        size_t amnt;
+        int amnt;
         while(1){
             amnt = SSL_peek(client_ssl, buffer+offset, sizeof(buffer) - offset - 1);
 
