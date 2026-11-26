@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 static char resource_folder[] = "../resources/";
 
@@ -186,6 +187,8 @@ static int respond_client(server_t* server, int clientsockfd, char* request)
     response_t* response = find_response(server, request_header.URI);
     if(!response) return 1;
 
+    free_HTTP_request_header(request_header);
+
     return response->response_function(clientsockfd, response->URI, request);
 }
 
@@ -201,31 +204,90 @@ static void* handle_client(void* vptr_clientfd_server_pair)
     server_t* ptr_server = temp.server;
     free(vptr_clientfd_server_pair);
 
-    printf("Filedescriptor: %i", client_sockfd);
-    char buffer[2048];
-    bzero(buffer, sizeof(buffer));
+    printf("Filedescriptor: %i\n", client_sockfd);
+    char buffer[4096];
 
     while(1){
-        int amnt = recv(client_sockfd, buffer, sizeof(buffer), 0); 
+        int offset = 0;
+        int offset_prev = 0;
+        char* header_end = 0;
+        bzero(buffer, sizeof(buffer));
+        int amnt;
+        while(1){
+            amnt = recv(client_sockfd, buffer + offset, sizeof(buffer) - offset - 1, MSG_PEEK);
+            if(amnt == 0){
+                printf("Client disconnected!\n");
+                goto exit;
+            } else if(amnt < 0){
+                perror("Could not read client HTTP header!\n");
+                goto exit;
+            }
 
-        if(amnt == 0){
-            printf("Client disconnected");
-            break;
+            offset += amnt;
+            buffer[offset] = '\0';
+            header_end = strstr(buffer, "\r\n\r\n");
+            if(header_end){
+                recv(client_sockfd, buffer + offset_prev, header_end - buffer - offset_prev + strlen("\r\n\r\n"), 0);
+                offset = (header_end - buffer) + 4;     //  points past last element ie \n
+                break;
+            } else {
+                recv(client_sockfd, buffer + offset_prev, offset - offset_prev, 0);
+                offset_prev = offset;
+            }
         }
 
-        if(amnt < 0){
-            perror("Could not read client message!");
-            break;
+        HTTP_request_header_t request_header = HTTP_parse_request(buffer);
+        if(request_header.request_type == INVALID) {
+            printf("Received faulty HTTP header!\n");
+            free_HTTP_request_header(request_header);
+            goto exit;
         }
+
+        int content_len = 0;
+        char* content_len_str = field_value(request_header.fields, request_header.fields_len, "Content-Length");
+        if(content_len_str) {
+            errno = 0;
+            content_len = strtol(content_len_str, 0, 10);
+            if(content_len == 0 && errno) {
+                printf("Malformed content length!\n");
+                free_HTTP_request_header(request_header);
+                goto exit;
+            }
+        }
+
+        
+        free_HTTP_request_header(request_header);
+
+        if(offset + content_len >= sizeof(buffer)){
+            printf("Client receive buffer too small!\n");
+            goto exit;
+        }
+
+        int cont_offset = 0;
+        while(cont_offset < content_len){
+            amnt = recv(client_sockfd, buffer + offset + cont_offset, content_len - cont_offset, 0);
+
+            if(amnt == 0){
+                printf("Client disconnected!\n");
+                goto exit;
+            } else if(amnt < 0){
+                perror("Could not read client message!\n");
+                goto exit;
+            }
+
+            cont_offset += amnt;
+        }
+        buffer[offset + cont_offset] = '\0';
 
         printf("Received the following message:\n");
-        printf("%s\n", buffer);
+        printf("%s\n\n", buffer);
 
         if(respond_client(ptr_server, client_sockfd, buffer)){
-            printf("Error when responding to client");
+            printf("Error when responding to client\n");
         }
     }
 
+exit:
     close(client_sockfd);
     printf("Finished client handling.\n\n");
     return 0;

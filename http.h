@@ -47,7 +47,6 @@ typedef struct {
     int fields_len;
 } HTTP_response_header_t;
 
-//  Returns index of field if it exists. Otherwise -1.
 int has_field(HTTP_pair_t* fields, int field_amnt, char* fieldname);
 char* field_value(HTTP_pair_t* fields, int field_amnt, char* fieldname);
 
@@ -61,7 +60,6 @@ void free_HTTP_request_header(HTTP_request_header_t request_header);
 void free_HTTP_response_header(HTTP_response_header_t response_header);
 
 HTTP_request_header_t HTTP_parse_request(char* request);
-/* Parses a complete HTTP/1.x header. HTTP_status_ignore signals failure. */
 HTTP_response_header_t HTTP_parse_response(char* response);
 
 char* HTTP_create_request(const HTTP_request_header_t request);
